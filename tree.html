@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang=en><head><meta charset=utf-8>
+<link rel=icon href=/favicon.ico>
+<meta name=viewport content=width=device-width>
+<title>Tree</title>
+<style>
+body {font-family:monospace;color:#EEE;font-size:14px;line-height:1.5;background-color:#222;padding:0;margin:0;}
+div {margin:0;padding:0;}
+
+.head {height:50px;}
+.head div {display:inline-block;vertical-align:top;}
+.banner {width:50%;font-size:20px;line-height:50px;padding-left:12px;}
+.buttons {margin-right:5px;}
+.buttons svg {height:50px;margin-right:6px;}
+.buttons svg:hover {color:#900;}
+.notice {padding-top:13px;}
+
+.container {display:flex;flex-flow:row nowrap;overflow:hidden;width:100%;height:calc(100vh - 50px);height:calc(100dvh - 50px);}
+.outTree,textarea {flex:1 1 50%;padding:10px;overflow:auto;white-space:pre-wrap;}
+textarea {background-color:#303030;border:none;color:var(--font-color);font-size:14px;line-height:1.5;margin:0 0 12px 12px;resize:none;outline:none;}
+
+.rootToggle {padding-top:13px;}
+.rootToggle input {display:none;}
+.rootToggle label {color:#DDD;padding:2px 10px;border:1px solid #0006;box-shadow:0 1px 3px 0 #0008 inset,0 -1px 0px 0 #FFF5 inset;cursor:pointer;}
+.rootToggle input:checked + label {box-shadow:0 1px 1px 0 #FFF5 inset,0 1px 3px 0 #0008;}
+.rootToggle label:first-of-type {border-radius:16px 0 0 16px;}
+.rootToggle label:last-of-type {border-radius:0 16px 16px 0;}
+
+::selection {color:#000;background-color:#FFF;}
+</style></head><body>
+
+<div class=head>
+  <div class=banner id=banner></div>
+  <div class=buttons>
+    <svg onclick="copy()" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>Copy to Clipboard</title><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    <svg onclick="save()" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>Save to browser's local storage</title><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+    <div class=rootToggle>
+      Root
+      <input type=radio id=rtOff onchange=rootToggle(0) name=rt value=0 checked><label for=rtOff>Off</label><input type=radio id=rtOn onchange=rootToggle(2) name=rt value=2><label for=rtOn>On</label>
+    </div>
+  </div>
+  <div class=notice id=notice></div>
+</div>
+
+<div class=container>
+  <textarea id=inTree></textarea>
+  <div class=outTree id=outTree></div>
+</div>
+
+</body><script>
+var root = 0;
+banner.textContent = location.hostname;
+
+var savedText = localStorage.getItem('tree');
+if(savedText) {
+  inTree.value = savedText;
+  updateTree();
+  savedText = null;
+}
+
+
+function updateTree() {
+  var prevIndent = 0, indent = 0;
+  var tree = root ? ".\n" : '';
+  var lines = inTree.value.replaceAll("\t","  ").split("\n");
+  lines.push('');
+  var nextIndent = lines[0].search(/\S/) + root;
+
+  for(let i = 0; i < lines.length - 1; i++) {
+    prevIndent = indent;
+    indent = nextIndent;
+    nextIndent = lines[i+1].search(/\S/) + root;
+    if(indent == -1) continue;
+    let indent2 = ~~(indent / 2); //2 space tabs
+    for(let j = 1; j < indent2; j++)
+      tree += "│   ";
+    if(indent2) {
+      tree += (nextIndent < indent) ? "└── " : "├── ";
+    }
+    tree += lines[i].trim() + "\n";
+  }
+  outTree.textContent = tree;
+}
+
+
+function copy() {
+  navigator.clipboard.writeText(outTree.textContent);
+  notice.textContent = "Copied to Clipboard";
+  setTimeout(()=>{notice.textContent = null}, 3000);
+}
+
+
+function save() {
+  localStorage.setItem("tree", inTree.value);
+  notice.textContent = "Saved to browser's local storage";
+  setTimeout(()=>{notice.textContent = null}, 3000);
+}
+
+
+function rootToggle(val) {
+  root = +val;
+  updateTree();
+}
+
+
+inTree.addEventListener('input', updateTree);
+
+
+document.addEventListener('keydown', event => {
+  if(event.key !== 'Tab' || inTree !== document.activeElement) return;
+  event.preventDefault();
+
+  var start = inTree.selectionStart;
+  if(inTree.selectionStart !== inTree.selectionEnd) { //selection. multi-line tab
+    while(start && inTree.value.charAt(start) !== '\n') //backtrack selection start to beginning of line
+      start -= 1;
+    let indentStr = event.shiftKey ? "" : "  "; //add or remove tab
+    while(start < inTree.selectionEnd - 1 && start !== -1) { //iter selection
+      if(!event.shiftKey || (inTree.value.charAt(start + 1) === ' ' && inTree.value.charAt(start + 2) === ' '))
+        inTree.setRangeText(indentStr, start + 1, start + 1 + (2 * event.shiftKey));
+      start += 1;
+      start = inTree.value.indexOf("\n", start); //next line
+    }
+  }
+  else //cursor. single tab
+    inTree.setRangeText("  ", start, start, 'end');
+
+  updateTree();
+},false);
+
+</script>
+</html>
